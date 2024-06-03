@@ -1,9 +1,12 @@
+import { useState } from "react";
+
 interface Props {
   onStartButtonClick: () => void;
   camKitLoaded: boolean;
 }
 
 export const Loading = ({ onStartButtonClick, camKitLoaded }: Props) => {
+  const [view, setView] = useState(0);
   return (
     <div className="loading">
       <section>
@@ -12,18 +15,18 @@ export const Loading = ({ onStartButtonClick, camKitLoaded }: Props) => {
           <li>
             <span>1</span>
             <img src="magnifying-glass.png" />
-            <p>enable motion permission</p>
+            <p>Allow permissions & Aim your phone at the ground</p>
           </li>
 
           <li>
             <span>2</span>
             <img src="camera.png" />
-            <p>Aim your phone camera at the correct images</p>
+            <p>Aim your camera at the trading card</p>
           </li>
           <li>
             <span>3</span>
             <img src="tap.png" />
-            <p>Solve the puzzel!</p>
+            <p>Tap the trading card to collect!</p>
           </li>
         </ol>
         <br />
@@ -31,10 +34,15 @@ export const Loading = ({ onStartButtonClick, camKitLoaded }: Props) => {
         <button
           disabled={!camKitLoaded}
           onClick={() => {
-            onStartButtonClick();
+            if (view === 1) {
+              onStartButtonClick();
+              return;
+            }
+
+            setView(1);
           }}
         >
-          Start
+          `{view === 1 ? "Start" : "Next"}`
         </button>
       </section>
     </div>

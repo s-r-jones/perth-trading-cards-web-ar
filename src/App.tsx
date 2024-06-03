@@ -1,8 +1,7 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { isMobile } from "react-device-detect";
 import {
   bootstrapCameraKit,
-  Transform2D,
   createMediaStreamSource,
   CameraKit,
   CameraKitSession,
@@ -12,11 +11,26 @@ import {
   remoteApiServicesFactory,
   Lens,
 } from "@snap/camera-kit";
+import { useQueryParam, StringParam } from "use-query-params";
 import { Loading } from "./components/Loading";
+import { requestMotionPermission, requestCameraPermission } from "./utils";
 
 import "./App.css";
 
 const LENS_GROUP_ID = "b99d3ccd-583a-4645-bbcb-ff8eab53915c";
+
+type CharMap = {
+  [key: string]: number;
+};
+
+const CharMap: CharMap = {
+  boof: 0,
+  ditty: 1,
+  nap: 2,
+  rumble: 3,
+  squish: 4,
+  crag: 5,
+};
 
 const apiService: RemoteApiService = {
   apiSpecId: "af9a7f93-3a8d-4cf4-85d2-4dcdb8789b3d",
@@ -46,19 +60,41 @@ export const App = () => {
 
   const [isInitialized, setIsInitialized] = useState(false);
   const [started, setStarted] = useState(false);
+  const [character] = useQueryParam("character", StringParam);
+  const [motionPermissionGranted, setMotionPermission] = useState(false);
+  const [cameraPermissionGranted, setCameraPermission] = useState(false);
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const setCanvasRef = (element: HTMLCanvasElement) => {
+    console.log(element);
+    if (element) setCanvas(element);
+  };
 
+  /**
+   * apply the correct lens to the session
+   */
   async function onStartButtonClick() {
     if (!sessionRef.current || !lensesRef.current) {
       console.error("Session not initialized when trying to start");
       return;
     }
 
-    let permSatus = "prompt";
-    console.log("isMobile", isMobile);
+    if (!character || !(character in CharMap)) {
+      console.error("Invalid character");
+      return;
+    }
 
     if (!isMobile) {
-      await sessionRef.current.applyLens(lensesRef.current[0]);
-      setStarted(true);
+      try {
+        await sessionRef.current.applyLens(
+          lensesRef.current[CharMap[character]]
+        );
+
+        setStarted(true);
+      } catch (e) {
+        console.error("Error applying lens", e);
+        //@ts-ignore
+        window.ReactNativeWebView.postMessage("AR error");
+      }
       return;
     }
 
@@ -67,28 +103,114 @@ export const App = () => {
       !window.DeviceMotionEvent.hasOwnProperty("requestPermission")
     ) {
       // odd case - we are likely in desktop browser simulation mode
-      await sessionRef.current.applyLens(lensesRef.current[0]);
+      await sessionRef.current.applyLens(lensesRef.current[CharMap[character]]);
       setStarted(true);
       return;
     }
 
-    try {
+    if (!motionPermissionGranted) {
       //@ts-ignore
-      permSatus = await window.DeviceMotionEvent.requestPermission();
-      if (permSatus === "granted") {
-        console.log("DeviceMotion permission granted");
-        await sessionRef.current.applyLens(lensesRef.current[0]);
-        setStarted(true);
-      } else {
-        console.error("DeviceMotion permission denied");
+      if (window.ReactNativeWebView) {
+        console.error(
+          "Requesting motion permission from RN - This should not happen"
+        );
       }
-    } catch (e) {
-      console.error(e);
+      console.log("Requesting motion permission");
+      const status = await requestMotionPermission();
+      if (!status) return;
+
+      setMotionPermission(status);
+      try {
+        await sessionRef.current.applyLens(
+          lensesRef.current[CharMap[character]]
+        );
+
+        setStarted(true);
+      } catch (e) {
+        console.error("Error applying lens", e);
+        //@ts-ignore
+        window.ReactNativeWebView.postMessage("AR error");
+      }
+      return;
     }
+    try {
+      await sessionRef.current.applyLens(lensesRef.current[CharMap[character]]);
+
+      setStarted(true);
+    } catch (e) {
+      console.error("Error applying lens", e);
+      //@ts-ignore
+      window.ReactNativeWebView.postMessage("AR error");
+    }
+    return;
   }
 
+  /**
+   * Determine how to handle permissions based on the platform
+   * window.xrii is a namespace used to communicate with the RN app
+   */
   useEffect(() => {
+    // handle react native permissions
+    //@ts-ignore
+
+    //@ts-ignore
+    if (!window.xrii) window.xrii = {};
+    //@ts-ignore
+    window.xrii.setPermissions = (perm: {
+      camera: boolean;
+      sensor: boolean;
+    }) => {
+      if (perm.sensor) {
+        console.log("RN sensor permission granted");
+        requestMotionPermission().then((status) => {
+          console.log(
+            "motion permission status after RN injected function call",
+            status
+          );
+
+          setMotionPermission(status);
+          /**
+           * Try to pass in the camera permission from the RN app
+           * Camera kit may ask anyway
+           * */
+          requestCameraPermission().then((cameraStatus) => {
+            console.log(
+              "camera permission status after RN injected function call",
+              cameraStatus
+            );
+            setCameraPermission(cameraStatus);
+          });
+        });
+
+        // we could also wait to build the AR until this call
+
+        // Thorstens code
+        // requestMotionPermission().then((motionPermission) => {
+        //   setMotionPermission(motionPermission as any);
+        //   requestCameraPermission().then((cameraPermission) => {
+        //     setCameraPermission(cameraPermission as any);
+        //
+        //   });
+        // });
+      }
+    };
+  }, []);
+
+  /**
+   * Instantiate CameraKit and start the session
+   */
+  useEffect(() => {
+    if (!canvas) {
+      console.error("Canvas not initialized");
+      return;
+    }
     async function initCameraKit() {
+      if (!canvas) {
+        console.error("Canvas not initialized!");
+        return;
+      }
+
+      console.log("Initializing CameraKit");
       // Init CameraKit
       //@ts-ignore
       const apiServiceInjectable = Injectable(
@@ -114,14 +236,14 @@ export const App = () => {
 
       // Init Session
       const session = await cameraKit.createSession({
-        liveRenderTarget: canvasRef.current || undefined,
+        liveRenderTarget: canvas,
       });
       sessionRef.current = session;
       session.events.addEventListener("error", (event) =>
         console.error(event.detail)
       );
       const devices = await navigator.mediaDevices.enumerateDevices();
-      console.log("device", devices);
+
       const backCamera = devices.find(
         (device) =>
           device.kind === "videoinput" &&
@@ -148,6 +270,11 @@ export const App = () => {
       setIsInitialized(true);
     }
 
+    if (!character || !(character in CharMap)) {
+      console.error("Invalid character");
+      return;
+    }
+
     if (!cameraKitRef.current) {
       initCameraKit();
     }
@@ -155,11 +282,11 @@ export const App = () => {
     return () => {
       sessionRef.current?.pause();
     };
-  }, []);
+  }, [canvas]);
 
   return (
     <div className="snap-camera-container">
-      <canvas ref={canvasRef} />
+      <canvas ref={setCanvasRef} />
 
       {(!isInitialized || !started) && (
         <Loading
