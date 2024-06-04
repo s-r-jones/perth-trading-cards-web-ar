@@ -82,7 +82,7 @@
   justify-content: center;
 
   .container {
-    margin-top: 25%;
+    margin-top: 20%;
     padding: 1rem;
     border-radius: 0.75rem;
     background-color: white;
@@ -172,6 +172,15 @@
       font-size: 1.375rem;
       margin: 0;
       text-align: center;
+    }
+
+    h3 {
+      text-align: center;
+      font-weight: 400;
+      font-size: 0.875rem;
+      line-height: 22.26px;
+      color: rgba(34, 33, 35, 1);
+      margin: 0.875rem 0;
     }
 
     article {
