@@ -14,23 +14,11 @@ import {
 import { useQueryParam, StringParam } from "use-query-params";
 import { Loading } from "./components/Loading";
 import { requestMotionPermission, requestCameraPermission } from "./utils";
+import { PlayerMap } from "./Players";
 
 import "./App.css";
 
 const LENS_GROUP_ID = "b99d3ccd-583a-4645-bbcb-ff8eab53915c";
-
-type CharMap = {
-  [key: string]: number;
-};
-
-const CharMap: CharMap = {
-  boof: 0,
-  ditty: 1,
-  nap: 2,
-  rumble: 3,
-  squish: 4,
-  crag: 5,
-};
 
 const apiService: RemoteApiService = {
   apiSpecId: "af9a7f93-3a8d-4cf4-85d2-4dcdb8789b3d",
@@ -60,12 +48,11 @@ export const App = () => {
 
   const [isInitialized, setIsInitialized] = useState(false);
   const [started, setStarted] = useState(false);
-  const [character] = useQueryParam("character", StringParam);
+  const [player] = useQueryParam("player", StringParam);
   const [motionPermissionGranted, setMotionPermission] = useState(false);
-  const [cameraPermissionGranted, setCameraPermission] = useState(false);
+  const [_, setCameraPermission] = useState(false);
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const setCanvasRef = (element: HTMLCanvasElement) => {
-    console.log(element);
     if (element) setCanvas(element);
   };
 
@@ -78,15 +65,15 @@ export const App = () => {
       return;
     }
 
-    if (!character || !(character in CharMap)) {
-      console.error("Invalid character");
+    if (!player || !(player in PlayerMap)) {
+      console.error("Invalid player");
       return;
     }
 
     if (!isMobile) {
       try {
         await sessionRef.current.applyLens(
-          lensesRef.current[CharMap[character]]
+          lensesRef.current[PlayerMap[player]]
         );
 
         setStarted(true);
@@ -103,7 +90,7 @@ export const App = () => {
       !window.DeviceMotionEvent.hasOwnProperty("requestPermission")
     ) {
       // odd case - we are likely in desktop browser simulation mode
-      await sessionRef.current.applyLens(lensesRef.current[CharMap[character]]);
+      await sessionRef.current.applyLens(lensesRef.current[PlayerMap[player]]);
       setStarted(true);
       return;
     }
@@ -111,18 +98,16 @@ export const App = () => {
     if (!motionPermissionGranted) {
       //@ts-ignore
       if (window.ReactNativeWebView) {
-        console.error(
-          "Requesting motion permission from RN - This should not happen"
-        );
+        console.error("Requesting motion permission from RN ");
       }
-      console.log("Requesting motion permission");
+
       const status = await requestMotionPermission();
       if (!status) return;
 
       setMotionPermission(status);
       try {
         await sessionRef.current.applyLens(
-          lensesRef.current[CharMap[character]]
+          lensesRef.current[PlayerMap[player]]
         );
 
         setStarted(true);
@@ -134,7 +119,7 @@ export const App = () => {
       return;
     }
     try {
-      await sessionRef.current.applyLens(lensesRef.current[CharMap[character]]);
+      await sessionRef.current.applyLens(lensesRef.current[PlayerMap[player]]);
 
       setStarted(true);
     } catch (e) {
@@ -161,23 +146,13 @@ export const App = () => {
       sensor: boolean;
     }) => {
       if (perm.sensor) {
-        console.log("RN sensor permission granted");
         requestMotionPermission().then((status) => {
-          console.log(
-            "motion permission status after RN injected function call",
-            status
-          );
-
           setMotionPermission(status);
           /**
            * Try to pass in the camera permission from the RN app
            * Camera kit may ask anyway
            * */
           requestCameraPermission().then((cameraStatus) => {
-            console.log(
-              "camera permission status after RN injected function call",
-              cameraStatus
-            );
             setCameraPermission(cameraStatus);
           });
         });
@@ -210,7 +185,6 @@ export const App = () => {
         return;
       }
 
-      console.log("Initializing CameraKit");
       // Init CameraKit
       //@ts-ignore
       const apiServiceInjectable = Injectable(
@@ -270,8 +244,8 @@ export const App = () => {
       setIsInitialized(true);
     }
 
-    if (!character || !(character in CharMap)) {
-      console.error("Invalid character");
+    if (!player || !(player in PlayerMap)) {
+      console.error("Invalid player");
       return;
     }
 

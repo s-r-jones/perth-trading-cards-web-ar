@@ -32,7 +32,7 @@ export const Loading = ({ onStartButtonClick, camKitLoaded }: Props) => {
                   <li>
                     <span>1</span>
                     <img src="magnifying-glass.png" />
-                    <p>Allow permissions & Aim your phone at the ground</p>
+                    <p>Allow permissions & Aim your phone at a flat surface</p>
                   </li>
 
                   <li>
@@ -95,7 +95,8 @@ export const Loading = ({ onStartButtonClick, camKitLoaded }: Props) => {
               </motion.section>
             )}
 
-            <button
+            <motion.button
+              key={2}
               disabled={!camKitLoaded && view === 1}
               onClick={() => {
                 if (view === 1) {
@@ -107,7 +108,7 @@ export const Loading = ({ onStartButtonClick, camKitLoaded }: Props) => {
               }}
             >
               {view === 1 ? "Start" : "Next"}
-            </button>
+            </motion.button>
             <div className="loading-instruction-step">
               <span className={view === 0 ? "active" : ""} />
               <span className={view === 1 ? "active" : ""} />
