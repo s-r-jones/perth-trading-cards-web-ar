@@ -48,7 +48,7 @@ export const App = () => {
 
   const [isInitialized, setIsInitialized] = useState(false);
   const [started, setStarted] = useState(false);
-  const [player] = useQueryParam("player", StringParam);
+  const [playerName] = useQueryParam("player", StringParam);
   const [motionPermissionGranted, setMotionPermission] = useState(false);
   const [_, setCameraPermission] = useState(false);
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
@@ -65,16 +65,34 @@ export const App = () => {
       return;
     }
 
-    if (!player || !(player in PlayerMap)) {
-      console.error("Invalid player");
+    if (!lensesRef.current.length) {
+      console.error("Error loading lenses");
+      // @ts-ignore
+      if (window.ReactNativeWebView) {
+        // @ts-ignore
+        window.ReactNativeWebView.postMessage("error");
+      }
+      return;
+    }
+
+    if (!playerName) {
+      console.error("No player name provided");
+      return;
+    }
+
+    // find lens with player name
+    const maybeLens = lensesRef.current.find((lens) =>
+      lens.name.includes(playerName)
+    );
+
+    if (!maybeLens) {
+      console.error("No lens found for player name");
       return;
     }
 
     if (!isMobile) {
       try {
-        await sessionRef.current.applyLens(
-          lensesRef.current[PlayerMap[player]]
-        );
+        await sessionRef.current.applyLens(maybeLens);
 
         setStarted(true);
       } catch (e) {
@@ -90,7 +108,7 @@ export const App = () => {
       !window.DeviceMotionEvent.hasOwnProperty("requestPermission")
     ) {
       // odd case - we are likely in desktop browser simulation mode
-      await sessionRef.current.applyLens(lensesRef.current[PlayerMap[player]]);
+      await sessionRef.current.applyLens(maybeLens);
       setStarted(true);
       return;
     }
@@ -106,9 +124,7 @@ export const App = () => {
 
       setMotionPermission(status);
       try {
-        await sessionRef.current.applyLens(
-          lensesRef.current[PlayerMap[player]]
-        );
+        await sessionRef.current.applyLens(maybeLens);
 
         setStarted(true);
       } catch (e) {
@@ -119,7 +135,7 @@ export const App = () => {
       return;
     }
     try {
-      await sessionRef.current.applyLens(lensesRef.current[PlayerMap[player]]);
+      await sessionRef.current.applyLens(maybeLens);
 
       setStarted(true);
     } catch (e) {
@@ -242,11 +258,6 @@ export const App = () => {
 
       session.play();
       setIsInitialized(true);
-    }
-
-    if (!player || !(player in PlayerMap)) {
-      console.error("Invalid player");
-      return;
     }
 
     if (!cameraKitRef.current) {
